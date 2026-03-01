@@ -1,280 +1,79 @@
 # simcrypt
 
-Encoder/Decoder of the symmetric encryption, uses full JDK 21 SunJCE 153 different cipher configurations and addition Bounty Castle 103 cipher configurations to mimic full symmetric algo key-spec.
+Symmetric encryption library covering all JDK SunJCE + BouncyCastle symmetric ciphers (~300 configurations). Picks a random cipher per operation so there's no way to guess which algorithm was used.
 
-BountyCastle support for symmetric - TBD
+## Dependency
 
-The key is a set of options, e.g. 
-
-list of supported algorythms:
-
+```xml
+<dependency>
+    <groupId>org.bouncycastle</groupId>
+    <artifactId>bcprov-jdk18on</artifactId>
+    <version>1.79</version>
+</dependency>
 ```
 
-AES/CBC/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CBC/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CBC/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/CBC/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CBC/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CBC/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/CTR/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CTR/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CTR/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/CTS/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CTS/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CTS/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/CFB/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CFB/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CFB/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/CFB/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CFB/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CFB/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/CFB/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CFB/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CFB/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/CFB8/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CFB8/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CFB8/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/CFB8/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CFB8/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CFB8/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/CFB8/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/CFB8/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/CFB8/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/OFB/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/OFB/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/OFB/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/OFB/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/OFB/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/OFB/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/OFB/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/OFB/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/OFB/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/OFB8/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/OFB8/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/OFB8/NoPadding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/OFB8/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/OFB8/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/OFB8/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/OFB8/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/OFB8/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/OFB8/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/PCBC/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/PCBC/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/PCBC/PKCS5Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/PCBC/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=128
-AES/PCBC/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=192
-AES/PCBC/ISO10126Padding, tag=0, iv=16, algoKey=AES, keyBits=256
-AES/GCM/NoPadding, tag=96, iv=12, algoKey=AES, keyBits=128
-AES/GCM/NoPadding, tag=96, iv=12, algoKey=AES, keyBits=192
-AES/GCM/NoPadding, tag=96, iv=12, algoKey=AES, keyBits=256
-AES/GCM/NoPadding, tag=104, iv=12, algoKey=AES, keyBits=128
-AES/GCM/NoPadding, tag=104, iv=12, algoKey=AES, keyBits=192
-AES/GCM/NoPadding, tag=104, iv=12, algoKey=AES, keyBits=256
-AES/GCM/NoPadding, tag=112, iv=12, algoKey=AES, keyBits=128
-AES/GCM/NoPadding, tag=112, iv=12, algoKey=AES, keyBits=192
-AES/GCM/NoPadding, tag=112, iv=12, algoKey=AES, keyBits=256
-AES/GCM/NoPadding, tag=120, iv=12, algoKey=AES, keyBits=128
-AES/GCM/NoPadding, tag=120, iv=12, algoKey=AES, keyBits=192
-AES/GCM/NoPadding, tag=120, iv=12, algoKey=AES, keyBits=256
-AES/GCM/NoPadding, tag=128, iv=12, algoKey=AES, keyBits=128
-AES/GCM/NoPadding, tag=128, iv=12, algoKey=AES, keyBits=192
-AES/GCM/NoPadding, tag=128, iv=12, algoKey=AES, keyBits=256
-Blowfish/CBC/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/CBC/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/CBC/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/CBC/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/CBC/ISO10126Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/CBC/ISO10126Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/CBC/ISO10126Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/CBC/ISO10126Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/CFB/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/CFB/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/CFB/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/CFB/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/CFB/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/CFB/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/CFB/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/CFB/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/CFB8/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/CFB8/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/CFB8/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/CFB8/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/OFB/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/OFB/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/OFB/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/OFB/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/OFB/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/OFB/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/OFB/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/OFB/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/OFB8/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/OFB8/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/OFB8/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/OFB8/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/CTR/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/CTR/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/CTR/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/CTR/NoPadding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/PCBC/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/PCBC/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/PCBC/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/PCBC/PKCS5Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-Blowfish/PCBC/ISO10126Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=128
-Blowfish/PCBC/ISO10126Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=192
-Blowfish/PCBC/ISO10126Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=256
-Blowfish/PCBC/ISO10126Padding, tag=0, iv=8, algoKey=Blowfish, keyBits=448
-DES/CBC/PKCS5Padding, tag=0, iv=8, algoKey=DES, keyBits=64
-DES/CBC/ISO10126Padding, tag=0, iv=8, algoKey=DES, keyBits=64
-DES/CFB/NoPadding, tag=0, iv=8, algoKey=DES, keyBits=64
-DES/CFB8/NoPadding, tag=0, iv=8, algoKey=DES, keyBits=64
-DES/OFB/NoPadding, tag=0, iv=8, algoKey=DES, keyBits=64
-DES/OFB8/NoPadding, tag=0, iv=8, algoKey=DES, keyBits=64
-DES/CTR/NoPadding, tag=0, iv=8, algoKey=DES, keyBits=64
-DES/PCBC/PKCS5Padding, tag=0, iv=8, algoKey=DES, keyBits=64
-DES/PCBC/ISO10126Padding, tag=0, iv=8, algoKey=DES, keyBits=64
-DESede/CBC/PKCS5Padding, tag=0, iv=8, algoKey=DESede, keyBits=192
-DESede/CBC/ISO10126Padding, tag=0, iv=8, algoKey=DESede, keyBits=192
-DESede/CFB/NoPadding, tag=0, iv=8, algoKey=DESede, keyBits=192
-DESede/CFB8/NoPadding, tag=0, iv=8, algoKey=DESede, keyBits=192
-DESede/OFB/NoPadding, tag=0, iv=8, algoKey=DESede, keyBits=192
-DESede/OFB8/NoPadding, tag=0, iv=8, algoKey=DESede, keyBits=192
-DESede/CTR/NoPadding, tag=0, iv=8, algoKey=DESede, keyBits=192
-DESede/PCBC/PKCS5Padding, tag=0, iv=8, algoKey=DESede, keyBits=192
-DESede/PCBC/ISO10126Padding, tag=0, iv=8, algoKey=DESede, keyBits=192
-RC2/CBC/PKCS5Padding, tag=0, iv=8, algoKey=RC2, keyBits=40
-RC2/CBC/PKCS5Padding, tag=0, iv=8, algoKey=RC2, keyBits=64
-RC2/CBC/PKCS5Padding, tag=0, iv=8, algoKey=RC2, keyBits=128
-RC2/CBC/ISO10126Padding, tag=0, iv=8, algoKey=RC2, keyBits=40
-RC2/CBC/ISO10126Padding, tag=0, iv=8, algoKey=RC2, keyBits=64
-RC2/CBC/ISO10126Padding, tag=0, iv=8, algoKey=RC2, keyBits=128
-RC2/CFB/NoPadding, tag=0, iv=8, algoKey=RC2, keyBits=40
-RC2/CFB/NoPadding, tag=0, iv=8, algoKey=RC2, keyBits=64
-RC2/CFB/NoPadding, tag=0, iv=8, algoKey=RC2, keyBits=128
-RC2/OFB/NoPadding, tag=0, iv=8, algoKey=RC2, keyBits=40
-RC2/OFB/NoPadding, tag=0, iv=8, algoKey=RC2, keyBits=64
-RC2/OFB/NoPadding, tag=0, iv=8, algoKey=RC2, keyBits=128
-RC2/CTR/NoPadding, tag=0, iv=8, algoKey=RC2, keyBits=40
-RC2/CTR/NoPadding, tag=0, iv=8, algoKey=RC2, keyBits=64
-RC2/CTR/NoPadding, tag=0, iv=8, algoKey=RC2, keyBits=128
-ARCFOUR, tag=0, iv=0, algoKey=ARCFOUR, keyBits=40
-ARCFOUR, tag=0, iv=0, algoKey=ARCFOUR, keyBits=56
-ARCFOUR, tag=0, iv=0, algoKey=ARCFOUR, keyBits=64
-ARCFOUR, tag=0, iv=0, algoKey=ARCFOUR, keyBits=80
-ARCFOUR, tag=0, iv=0, algoKey=ARCFOUR, keyBits=128
-ChaCha20, tag=0, iv=12, algoKey=ChaCha20, keyBits=256
-ChaCha20-Poly1305, tag=0, iv=12, algoKey=ChaCha20, keyBits=256
-Twofish/CBC/PKCS5Padding, tag=0, iv=16, algoKey=Twofish, keyBits=128
-Twofish/CBC/PKCS5Padding, tag=0, iv=16, algoKey=Twofish, keyBits=192
-Twofish/CBC/PKCS5Padding, tag=0, iv=16, algoKey=Twofish, keyBits=256
-Twofish/CBC/ISO10126Padding, tag=0, iv=16, algoKey=Twofish, keyBits=128
-Twofish/CBC/ISO10126Padding, tag=0, iv=16, algoKey=Twofish, keyBits=192
-Twofish/CBC/ISO10126Padding, tag=0, iv=16, algoKey=Twofish, keyBits=256
-Twofish/CTR/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=128
-Twofish/CTR/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=192
-Twofish/CTR/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=256
-Twofish/CFB/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=128
-Twofish/CFB/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=192
-Twofish/CFB/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=256
-Twofish/CFB8/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=128
-Twofish/CFB8/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=192
-Twofish/CFB8/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=256
-Twofish/OFB/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=128
-Twofish/OFB/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=192
-Twofish/OFB/NoPadding, tag=0, iv=16, algoKey=Twofish, keyBits=256
-Twofish/GCM/NoPadding, tag=128, iv=16, algoKey=Twofish, keyBits=128
-Twofish/GCM/NoPadding, tag=128, iv=16, algoKey=Twofish, keyBits=192
-Twofish/GCM/NoPadding, tag=128, iv=16, algoKey=Twofish, keyBits=256
-Serpent/CBC/PKCS5Padding, tag=0, iv=16, algoKey=Serpent, keyBits=128
-Serpent/CBC/PKCS5Padding, tag=0, iv=16, algoKey=Serpent, keyBits=192
-Serpent/CBC/PKCS5Padding, tag=0, iv=16, algoKey=Serpent, keyBits=256
-Serpent/CBC/ISO10126Padding, tag=0, iv=16, algoKey=Serpent, keyBits=128
-Serpent/CBC/ISO10126Padding, tag=0, iv=16, algoKey=Serpent, keyBits=192
-Serpent/CBC/ISO10126Padding, tag=0, iv=16, algoKey=Serpent, keyBits=256
-Serpent/CTR/NoPadding, tag=0, iv=16, algoKey=Serpent, keyBits=128
-Serpent/CTR/NoPadding, tag=0, iv=16, algoKey=Serpent, keyBits=192
-Serpent/CTR/NoPadding, tag=0, iv=16, algoKey=Serpent, keyBits=256
-Serpent/CFB/NoPadding, tag=0, iv=16, algoKey=Serpent, keyBits=128
-Serpent/CFB/NoPadding, tag=0, iv=16, algoKey=Serpent, keyBits=192
-Serpent/CFB/NoPadding, tag=0, iv=16, algoKey=Serpent, keyBits=256
-Serpent/OFB/NoPadding, tag=0, iv=16, algoKey=Serpent, keyBits=128
-Serpent/OFB/NoPadding, tag=0, iv=16, algoKey=Serpent, keyBits=192
-Serpent/OFB/NoPadding, tag=0, iv=16, algoKey=Serpent, keyBits=256
-Camellia/CBC/PKCS5Padding, tag=0, iv=16, algoKey=Camellia, keyBits=128
-Camellia/CBC/PKCS5Padding, tag=0, iv=16, algoKey=Camellia, keyBits=192
-Camellia/CBC/PKCS5Padding, tag=0, iv=16, algoKey=Camellia, keyBits=256
-Camellia/CBC/ISO10126Padding, tag=0, iv=16, algoKey=Camellia, keyBits=128
-Camellia/CBC/ISO10126Padding, tag=0, iv=16, algoKey=Camellia, keyBits=192
-Camellia/CBC/ISO10126Padding, tag=0, iv=16, algoKey=Camellia, keyBits=256
-Camellia/CTR/NoPadding, tag=0, iv=16, algoKey=Camellia, keyBits=128
-Camellia/CTR/NoPadding, tag=0, iv=16, algoKey=Camellia, keyBits=192
-Camellia/CTR/NoPadding, tag=0, iv=16, algoKey=Camellia, keyBits=256
-Camellia/CFB/NoPadding, tag=0, iv=16, algoKey=Camellia, keyBits=128
-Camellia/CFB/NoPadding, tag=0, iv=16, algoKey=Camellia, keyBits=192
-Camellia/CFB/NoPadding, tag=0, iv=16, algoKey=Camellia, keyBits=256
-Camellia/OFB/NoPadding, tag=0, iv=16, algoKey=Camellia, keyBits=128
-Camellia/OFB/NoPadding, tag=0, iv=16, algoKey=Camellia, keyBits=192
-Camellia/OFB/NoPadding, tag=0, iv=16, algoKey=Camellia, keyBits=256
-CAST5/CBC/PKCS5Padding, tag=0, iv=8, algoKey=CAST5, keyBits=40
-CAST5/CBC/PKCS5Padding, tag=0, iv=8, algoKey=CAST5, keyBits=64
-CAST5/CBC/PKCS5Padding, tag=0, iv=8, algoKey=CAST5, keyBits=128
-CAST5/CTR/NoPadding, tag=0, iv=8, algoKey=CAST5, keyBits=40
-CAST5/CTR/NoPadding, tag=0, iv=8, algoKey=CAST5, keyBits=64
-CAST5/CTR/NoPadding, tag=0, iv=8, algoKey=CAST5, keyBits=128
-CAST5/CFB/NoPadding, tag=0, iv=8, algoKey=CAST5, keyBits=40
-CAST5/CFB/NoPadding, tag=0, iv=8, algoKey=CAST5, keyBits=64
-CAST5/CFB/NoPadding, tag=0, iv=8, algoKey=CAST5, keyBits=128
-CAST5/OFB/NoPadding, tag=0, iv=8, algoKey=CAST5, keyBits=40
-CAST5/OFB/NoPadding, tag=0, iv=8, algoKey=CAST5, keyBits=64
-CAST5/OFB/NoPadding, tag=0, iv=8, algoKey=CAST5, keyBits=128
-CAST6/CBC/PKCS5Padding, tag=0, iv=16, algoKey=CAST6, keyBits=128
-CAST6/CBC/PKCS5Padding, tag=0, iv=16, algoKey=CAST6, keyBits=192
-CAST6/CBC/PKCS5Padding, tag=0, iv=16, algoKey=CAST6, keyBits=256
-CAST6/CBC/ISO10126Padding, tag=0, iv=16, algoKey=CAST6, keyBits=128
-CAST6/CBC/ISO10126Padding, tag=0, iv=16, algoKey=CAST6, keyBits=192
-CAST6/CBC/ISO10126Padding, tag=0, iv=16, algoKey=CAST6, keyBits=256
-CAST6/CTR/NoPadding, tag=0, iv=16, algoKey=CAST6, keyBits=128
-CAST6/CTR/NoPadding, tag=0, iv=16, algoKey=CAST6, keyBits=192
-CAST6/CTR/NoPadding, tag=0, iv=16, algoKey=CAST6, keyBits=256
-CAST6/CFB/NoPadding, tag=0, iv=16, algoKey=CAST6, keyBits=128
-CAST6/CFB/NoPadding, tag=0, iv=16, algoKey=CAST6, keyBits=192
-CAST6/CFB/NoPadding, tag=0, iv=16, algoKey=CAST6, keyBits=256
-CAST6/OFB/NoPadding, tag=0, iv=16, algoKey=CAST6, keyBits=128
-CAST6/OFB/NoPadding, tag=0, iv=16, algoKey=CAST6, keyBits=192
-CAST6/OFB/NoPadding, tag=0, iv=16, algoKey=CAST6, keyBits=256
-IDEA/CBC/PKCS5Padding, tag=0, iv=8, algoKey=IDEA, keyBits=128
-IDEA/CTR/NoPadding, tag=0, iv=8, algoKey=IDEA, keyBits=128
-IDEA/CFB/NoPadding, tag=0, iv=8, algoKey=IDEA, keyBits=128
-IDEA/OFB/NoPadding, tag=0, iv=8, algoKey=IDEA, keyBits=128
-SEED/CBC/PKCS5Padding, tag=0, iv=16, algoKey=SEED, keyBits=128
-SEED/CBC/ISO10126Padding, tag=0, iv=16, algoKey=SEED, keyBits=128
-SEED/CTR/NoPadding, tag=0, iv=16, algoKey=SEED, keyBits=128
-SEED/CFB/NoPadding, tag=0, iv=16, algoKey=SEED, keyBits=128
-SEED/OFB/NoPadding, tag=0, iv=16, algoKey=SEED, keyBits=128
-ARIA/CBC/PKCS5Padding, tag=0, iv=16, algoKey=ARIA, keyBits=128
-ARIA/CBC/PKCS5Padding, tag=0, iv=16, algoKey=ARIA, keyBits=192
-ARIA/CBC/PKCS5Padding, tag=0, iv=16, algoKey=ARIA, keyBits=256
-ARIA/CBC/ISO10126Padding, tag=0, iv=16, algoKey=ARIA, keyBits=128
-ARIA/CBC/ISO10126Padding, tag=0, iv=16, algoKey=ARIA, keyBits=192
-ARIA/CBC/ISO10126Padding, tag=0, iv=16, algoKey=ARIA, keyBits=256
-ARIA/CTR/NoPadding, tag=0, iv=16, algoKey=ARIA, keyBits=128
-ARIA/CTR/NoPadding, tag=0, iv=16, algoKey=ARIA, keyBits=192
-ARIA/CTR/NoPadding, tag=0, iv=16, algoKey=ARIA, keyBits=256
-ARIA/CFB/NoPadding, tag=0, iv=16, algoKey=ARIA, keyBits=128
-ARIA/CFB/NoPadding, tag=0, iv=16, algoKey=ARIA, keyBits=192
-ARIA/CFB/NoPadding, tag=0, iv=16, algoKey=ARIA, keyBits=256
-ARIA/OFB/NoPadding, tag=0, iv=16, algoKey=ARIA, keyBits=128
-ARIA/OFB/NoPadding, tag=0, iv=16, algoKey=ARIA, keyBits=192
-ARIA/OFB/NoPadding, tag=0, iv=16, algoKey=ARIA, keyBits=256
-SM4/CBC/PKCS5Padding, tag=0, iv=16, algoKey=SM4, keyBits=128
-SM4/CBC/ISO10126Padding, tag=0, iv=16, algoKey=SM4, keyBits=128
-SM4/CTR/NoPadding, tag=0, iv=16, algoKey=SM4, keyBits=128
-SM4/CFB/NoPadding, tag=0, iv=16, algoKey=SM4, keyBits=128
-SM4/OFB/NoPadding, tag=0, iv=16, algoKey=SM4, keyBits=128
-HC128, tag=0, iv=16, algoKey=HC128, keyBits=128
-HC256, tag=0, iv=32, algoKey=HC256, keyBits=256
-Salsa20, tag=0, iv=8, algoKey=Salsa20, keyBits=256
-XSalsa20, tag=0, iv=24, algoKey=XSalsa20, keyBits=256
-Grain128, tag=0, iv=12, algoKey=Grain128, keyBits=128
+## Quickstart
 
+```java
+// Step 1 — generate your master key once and store it in env / secrets vault:
+String masterKey = EncryptionService.generateMasterKey();
+
+// Step 2 — use it:
+Encryptor sc = new EncryptionService(System.getenv("ENCRYPTION_KEY"));
+
+// Encrypt — picks a random strong cipher, embeds cipher metadata in the token
+String token = sc.seal("my API key");
+
+// Decrypt — fully self-contained, no need to track which cipher was used
+String plain = sc.open(token);
 ```
 
+## Advanced usage
+
+```java
+// Pick a cipher explicitly
+CryptoKey key = EncryptionService.randomKey();        // any of ~400 ciphers
+CryptoKey key = EncryptionService.randomStrongKey();  // AEAD / modern stream only
+
+String enc = sc.encrypt("data", key);
+String dec = sc.decrypt(enc, key);
+
+// Seal with a specific cipher (both overloads available via Encryptor interface)
+String token = sc.seal("data", key);
+
+// Persist the cipher choice alongside the ciphertext (e.g. in a DB column)
+String    serial   = key.serialize();
+CryptoKey restored = CryptoKey.deserialize(serial);
+```
+
+## Key tiers
+
+```java
+EncryptionService.getAllCryptoKeys();  // all ~300 configurations
+EncryptionService.getStrongKeys();    // AEAD + modern stream (recommended)
+EncryptionService.getLegacyKeys();    // DES, RC2, ARCFOUR, TEA, GOST, ...
+
+key.isAead()    // GCM, Poly1305, EAX, CCM, OCB
+key.isStrong()  // AEAD + ChaCha20 / Salsa20 family
+key.isLegacy()  // weak / deprecated ciphers
+```
+
+## Covered algorithms by family
+
+**JDK — AES** : CBC, CTR, CTS, CFB, CFB8, OFB, OFB8, PCBC · keys 128/192/256
+
+**JDK — AES-GCM** : tags 96/104/112/120/128 bits · keys 128/192/256
+
+**JDK — Legacy** : Blowfish, DES, DESede, RC2, ARCFOUR
+
+**JDK — Stream** : ChaCha20, ChaCha20-Poly1305
+
+**BC — 128-bit block** : Twofish, Serpent, Camellia, CAST6, ARIA, SEED, SM4, RC6, Noekeon, DSTU7624/Kalyna
+
+**BC — 64-bit block** : CAST5, IDEA, TEA, XTEA, SKIPJACK, GOST28147
+
+	**BC — Stream** : HC-128, HC-256, Salsa20, XSalsa20, Grain-128
+
+## Security note
+
+`seal()` always picks from `getStrongKeys()` (AEAD only). `getLegacyKeys()` exists for interoperability with legacy systems — avoid it for new data.

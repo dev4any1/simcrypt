@@ -5,10 +5,10 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.ChaCha20ParameterSpec;
@@ -18,255 +18,160 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
-public class EncryptionService {
+/**
+ * Symmetric encryption service covering all JDK SunJCE + BouncyCastle ciphers.
+ *
+ * <h2>Quickstart</h2>
+ * <pre>{@code
+ * // Generate and store your master key once:
+ * String masterKey = EncryptionService.generateMasterKey();
+ *
+ * Encryptor sc = new EncryptionService(masterKey);
+ *
+ * String token = sc.seal("my API key");   // random strong cipher, self-contained
+ * String plain  = sc.open(token);
+ * }</pre>
+ *
+ * <h2>Advanced usage</h2>
+ * <pre>{@code
+ * CryptoKey key = EncryptionService.randomKey();         // any of ~400 ciphers
+ * CryptoKey key = EncryptionService.randomStrongKey();   // AEAD / modern stream only
+ *
+ * String enc = sc.encrypt("data", key);
+ * String dec = sc.decrypt(enc, key);
+ *
+ * String    serial   = key.serialize();
+ * CryptoKey restored = CryptoKey.deserialize(serial);
+ * }</pre>
+ */
+public class EncryptionService implements Encryptor {
 
-	private String secretKey = "Qcewntjno+YIZEC+M2M9XqWQuvNsmV6lsEZPkUG0KEk=";
+    static {
+        Security.addProvider(new BouncyCastleProvider());
+    }
 
-	static {
-		Security.addProvider(new BouncyCastleProvider());		
-	}
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-	public record CryptoKey(String algo, int tag, int iv, String algoKey, int keyBits) {
-	    public CryptoKey {
-	        boolean isGcm = algo.contains("GCM");
-	        if (isGcm && tag == 0)
-	            throw new IllegalArgumentException("GCM requires non-zero tag (bits): " + algo);
-	        if (!isGcm && tag != 0)
-	            throw new IllegalArgumentException("tag must be 0 for non-AEAD algo: " + algo);
-	        if (iv < 0)
-	            throw new IllegalArgumentException("iv (bytes) cannot be negative");
-	    }
-	}
+    private static final List<CryptoKey> ALL_KEYS    = Encryptor.buildAllKeys();
+    private static final List<CryptoKey> STRONG_KEYS = ALL_KEYS.stream().filter(CryptoKey::isStrong).toList();
+    private static final List<CryptoKey> LEGACY_KEYS = ALL_KEYS.stream().filter(CryptoKey::isLegacy).toList();
 
-	private SecretKeySpec deriveKey(CryptoKey key) throws Exception {
-		int requiredBytes = key.keyBits() / 8;
-		byte[] masterBytes = Base64.getDecoder().decode(secretKey);
-		// SHA-256 → 32 bytes (up to 256-bit keys)
-		// SHA-512 → 64 bytes (Blowfish 448-bit = 56 bytes)
-		String digestAlgo = requiredBytes <= 32 ? "SHA-256" : "SHA-512";
-		byte[] derived = MessageDigest.getInstance(digestAlgo).digest(masterBytes);
-		if (requiredBytes > derived.length)
-			throw new IllegalStateException("Derived key too short for " + key.algo());
-		return new SecretKeySpec(Arrays.copyOf(derived, requiredBytes), key.algoKey());
-	}
+    private final byte[] masterKeyBytes;
+    private final ConcurrentHashMap<CryptoKey, SecretKeySpec> keyCache = new ConcurrentHashMap<>();
 
-	private static AlgorithmParameterSpec buildSpec(CryptoKey key, byte[] iv) {
-		if (key.algo().contains("GCM"))
-			return new GCMParameterSpec(key.tag(), iv); // tag=bits, iv[]= bytes
+    /** Production constructor — pass your Base64-encoded 32-byte master key. */
+    public EncryptionService(String base64MasterKey) {
+        this.masterKeyBytes = Base64.getDecoder().decode(base64MasterKey);
+    }
 
-		if (key.algo().equals("ChaCha20"))
-			return new ChaCha20ParameterSpec(iv, 0); // nonce=12 bytes, counter=0
+    /** Test constructor — uses a random master key. DO NOT use in production. */
+    public EncryptionService() {
+        this.masterKeyBytes = Base64.getDecoder().decode(generateMasterKey());
+    }
 
-		if (key.iv() > 0)
-			return new IvParameterSpec(iv); // CBC, CTR, CFB, OFB, PCBC, ChaCha20-Poly1305
+    /**
+     * Generates a cryptographically random 32-byte master key, Base64-encoded.
+     * Run once and store in an environment variable or secrets vault.
+     *
+     * <pre>{@code
+     * System.out.println(EncryptionService.generateMasterKey());
+     * // Then: new EncryptionService(System.getenv("ENCRYPTION_KEY"))
+     * }</pre>
+     */
+    public static String generateMasterKey() {
+        byte[] key = new byte[32];
+        SECURE_RANDOM.nextBytes(key);
+        return Base64.getEncoder().encodeToString(key);
+    }
 
-		return null; // ARCFOUR only
-	}
+    private SecretKeySpec deriveKey(CryptoKey key) throws Exception {
+        SecretKeySpec cached = keyCache.get(key);
+        if (cached != null) return cached;
 
-	public String encrypt(String plainText, CryptoKey key) throws Exception {
-		byte[] iv = new byte[key.iv()];
-		new SecureRandom().nextBytes(iv);
+        int requiredBytes = key.keyBits() / 8;
+        String digestAlgo = requiredBytes <= 32 ? "SHA-256" : "SHA-512";
+        byte[] derived = MessageDigest.getInstance(digestAlgo).digest(masterKeyBytes);
+        if (requiredBytes > derived.length)
+            throw new IllegalStateException("Derived key too short for " + key.algo()
+                + " (" + requiredBytes + " bytes needed, " + derived.length + " available)");
 
-		Cipher cipher = Cipher.getInstance(key.algo());
-		AlgorithmParameterSpec spec = buildSpec(key, iv);
-		if (spec != null)
-			cipher.init(Cipher.ENCRYPT_MODE, deriveKey(key), spec);
-		else
-			cipher.init(Cipher.ENCRYPT_MODE, deriveKey(key));
+        SecretKeySpec spec = new SecretKeySpec(Arrays.copyOf(derived, requiredBytes), key.algoKey());
+        keyCache.put(key, spec);
+        return spec;
+    }
 
-		byte[] encrypted = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
-		byte[] encryptedWithIv = new byte[key.iv() + encrypted.length];
-		System.arraycopy(iv, 0, encryptedWithIv, 0, key.iv());
-		System.arraycopy(encrypted, 0, encryptedWithIv, key.iv(), encrypted.length);
-		return Base64.getEncoder().encodeToString(encryptedWithIv);
-	}
+    private static AlgorithmParameterSpec buildSpec(CryptoKey key, byte[] iv) {
+        if (key.algo().contains("GCM"))    return new GCMParameterSpec(key.tag(), iv);
+        if (key.algo().equals("ChaCha20")) return new ChaCha20ParameterSpec(iv, 0);
+        if (key.iv() > 0)                  return new IvParameterSpec(iv);
+        return null;
+    }
 
-	public String decrypt(String encryptedText, CryptoKey key) throws Exception {
-		byte[] encryptedWithIv = Base64.getDecoder().decode(encryptedText);
-		byte[] iv = Arrays.copyOfRange(encryptedWithIv, 0, key.iv());
-		byte[] encrypted = Arrays.copyOfRange(encryptedWithIv, key.iv(), encryptedWithIv.length);
+    @Override
+    public String encrypt(String plainText, CryptoKey key) throws Exception {
+        byte[] iv = new byte[key.iv()];
+        SECURE_RANDOM.nextBytes(iv);
 
-		Cipher cipher = Cipher.getInstance(key.algo());
-		AlgorithmParameterSpec spec = buildSpec(key, iv);
-		if (spec != null)
-			cipher.init(Cipher.DECRYPT_MODE, deriveKey(key), spec);
-		else
-			cipher.init(Cipher.DECRYPT_MODE, deriveKey(key));
+        Cipher cipher = Cipher.getInstance(key.algo());
+        AlgorithmParameterSpec spec = buildSpec(key, iv);
+        if (spec != null) cipher.init(Cipher.ENCRYPT_MODE, deriveKey(key), spec);
+        else              cipher.init(Cipher.ENCRYPT_MODE, deriveKey(key));
 
-		return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
-	}
+        byte[] encrypted = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
+        byte[] blob = new byte[key.iv() + encrypted.length];
+        System.arraycopy(iv,        0, blob, 0,        key.iv());
+        System.arraycopy(encrypted, 0, blob, key.iv(), encrypted.length);
+        return Base64.getEncoder().encodeToString(blob);
+    }
 
-	public static List<CryptoKey> getAllCryptoKeys() {
-		record ModeSpec(String mode, List<String> paddings) {
-		}
+    @Override
+    public String decrypt(String encryptedText, CryptoKey key) throws Exception {
+        byte[] blob      = Base64.getDecoder().decode(encryptedText);
+        byte[] iv        = Arrays.copyOfRange(blob, 0,        key.iv());
+        byte[] encrypted = Arrays.copyOfRange(blob, key.iv(), blob.length);
 
-		var aesModes = List.of(new ModeSpec("CBC", List.of("PKCS5Padding", "ISO10126Padding")),
-				new ModeSpec("CTR", List.of("NoPadding")), new ModeSpec("CTS", List.of("NoPadding")),
-				new ModeSpec("CFB", List.of("NoPadding", "PKCS5Padding", "ISO10126Padding")),
-				new ModeSpec("CFB8", List.of("NoPadding", "PKCS5Padding", "ISO10126Padding")),
-				new ModeSpec("OFB", List.of("NoPadding", "PKCS5Padding", "ISO10126Padding")),
-				new ModeSpec("OFB8", List.of("NoPadding", "PKCS5Padding", "ISO10126Padding")),
-				new ModeSpec("PCBC", List.of("PKCS5Padding", "ISO10126Padding")));
+        Cipher cipher = Cipher.getInstance(key.algo());
+        AlgorithmParameterSpec spec = buildSpec(key, iv);
+        if (spec != null) cipher.init(Cipher.DECRYPT_MODE, deriveKey(key), spec);
+        else              cipher.init(Cipher.DECRYPT_MODE, deriveKey(key));
 
-		var blowfishModes = List.of(new ModeSpec("CBC", List.of("PKCS5Padding", "ISO10126Padding")),
-				new ModeSpec("CFB", List.of("NoPadding", "PKCS5Padding")), new ModeSpec("CFB8", List.of("NoPadding")),
-				new ModeSpec("OFB", List.of("NoPadding", "PKCS5Padding")), new ModeSpec("OFB8", List.of("NoPadding")),
-				new ModeSpec("CTR", List.of("NoPadding")),
-				new ModeSpec("PCBC", List.of("PKCS5Padding", "ISO10126Padding")));
+        return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
+    }
 
-		var desModes = List.of(new ModeSpec("CBC", List.of("PKCS5Padding", "ISO10126Padding")),
-				new ModeSpec("CFB", List.of("NoPadding")), new ModeSpec("CFB8", List.of("NoPadding")),
-				new ModeSpec("OFB", List.of("NoPadding")), new ModeSpec("OFB8", List.of("NoPadding")),
-				new ModeSpec("CTR", List.of("NoPadding")),
-				new ModeSpec("PCBC", List.of("PKCS5Padding", "ISO10126Padding")));
+    @Override
+    public String seal(String plainText) throws Exception {
+        return seal(plainText, randomStrongKey());
+    }
 
-		var rc2Modes = List.of(new ModeSpec("CBC", List.of("PKCS5Padding", "ISO10126Padding")),
-				new ModeSpec("CFB", List.of("NoPadding")), new ModeSpec("OFB", List.of("NoPadding")),
-				new ModeSpec("CTR", List.of("NoPadding")));
+    @Override
+    public String seal(String plainText, CryptoKey key) throws Exception {
+        String ciphertext  = encrypt(plainText, key);
+        byte[] keyBytes    = key.serialize().getBytes(StandardCharsets.UTF_8);
+        byte[] cipherBytes = ciphertext.getBytes(StandardCharsets.UTF_8);
 
-		var all = new ArrayList<CryptoKey>();
+        byte[] blob = new byte[4 + keyBytes.length + cipherBytes.length];
+        blob[0] = (byte)(keyBytes.length >> 24);
+        blob[1] = (byte)(keyBytes.length >> 16);
+        blob[2] = (byte)(keyBytes.length >>  8);
+        blob[3] = (byte)(keyBytes.length);
+        System.arraycopy(keyBytes,    0, blob, 4,                   keyBytes.length);
+        System.arraycopy(cipherBytes, 0, blob, 4 + keyBytes.length, cipherBytes.length);
+        return Base64.getEncoder().encodeToString(blob);
+    }
 
-		// AES block modes: iv=16 bytes, tag=0
-		for (var m : aesModes)
-			for (var pad : m.paddings())
-				for (int ks : new int[] { 128, 192, 256 })
-					all.add(new CryptoKey("AES/" + m.mode() + "/" + pad, 0, 16, "AES", ks));
+    @Override
+    public String open(String token) throws Exception {
+        byte[] blob  = Base64.getDecoder().decode(token);
+        int keyLen   = ((blob[0] & 0xFF) << 24) | ((blob[1] & 0xFF) << 16)
+                     | ((blob[2] & 0xFF) <<  8) |  (blob[3] & 0xFF);
+        CryptoKey key    = CryptoKey.deserialize(new String(blob, 4, keyLen, StandardCharsets.UTF_8));
+        String ciphertext = new String(blob, 4 + keyLen, blob.length - 4 - keyLen, StandardCharsets.UTF_8);
+        return decrypt(ciphertext, key);
+    }
 
-		// AES-GCM: iv=12 bytes, tag in bits
-		for (int tag : new int[] { 96, 104, 112, 120, 128 })
-			for (int ks : new int[] { 128, 192, 256 })
-				all.add(new CryptoKey("AES/GCM/NoPadding", tag, 12, "AES", ks));
-
-		// Blowfish: iv=8 bytes, tag=0
-		for (var m : blowfishModes)
-			for (var pad : m.paddings())
-				for (int ks : new int[] { 128, 192, 256, 448 })
-					all.add(new CryptoKey("Blowfish/" + m.mode() + "/" + pad, 0, 8, "Blowfish", ks));
-
-		// DES: iv=8 bytes, tag=0, 64-bit key
-		for (var m : desModes)
-			for (var pad : m.paddings())
-				all.add(new CryptoKey("DES/" + m.mode() + "/" + pad, 0, 8, "DES", 64));
-
-		// DESede: iv=8 bytes, tag=0 — JDK only accepts 192-bit (24 bytes)
-		for (var m : desModes)
-			for (var pad : m.paddings())
-				all.add(new CryptoKey("DESede/" + m.mode() + "/" + pad, 0, 8, "DESede", 192));
-
-		// RC2: iv=8 bytes, tag=0
-		for (var m : rc2Modes)
-			for (var pad : m.paddings())
-				for (int ks : new int[] { 40, 64, 128 })
-					all.add(new CryptoKey("RC2/" + m.mode() + "/" + pad, 0, 8, "RC2", ks));
-
-		// ARCFOUR: no iv, no tag
-		for (int ks : new int[] { 40, 56, 64, 80, 128 })
-			all.add(new CryptoKey("ARCFOUR", 0, 0, "ARCFOUR", ks));
-
-		// ChaCha20 bare stream: no iv, no tag
-		all.add(new CryptoKey("ChaCha20", 0, 12, "ChaCha20", 256));
-
-		// ChaCha20-Poly1305: iv=12 bytes, tag handled internally (0 here)
-		all.add(new CryptoKey("ChaCha20-Poly1305", 0, 12, "ChaCha20", 256));
-
-		// ── BouncyCastle algorithms ──────────────────────────────────────────────
-
-		// Twofish: 128-bit block, iv=16
-		var twofishModes = List.of(
-		    new ModeSpec("CBC",  List.of("PKCS5Padding", "ISO10126Padding")),
-		    new ModeSpec("CTR",  List.of("NoPadding")),
-		    new ModeSpec("CFB",  List.of("NoPadding")),
-		    new ModeSpec("CFB8", List.of("NoPadding")),
-		    new ModeSpec("OFB",  List.of("NoPadding")),
-		    new ModeSpec("GCM",  List.of("NoPadding")));  // BC supports GCM for Twofish
-
-		for (var m : twofishModes)
-		    for (var pad : m.paddings())
-		        for (int ks : new int[]{128, 192, 256})
-		            if (m.mode().equals("GCM"))
-		                all.add(new CryptoKey("Twofish/GCM/NoPadding", 128, 16, "Twofish", ks));
-		            else
-		                all.add(new CryptoKey("Twofish/" + m.mode() + "/" + pad, 0, 16, "Twofish", ks));
-
-		// Serpent: 128-bit block, iv=16
-		var serpentModes = List.of(
-		    new ModeSpec("CBC",  List.of("PKCS5Padding", "ISO10126Padding")),
-		    new ModeSpec("CTR",  List.of("NoPadding")),
-		    new ModeSpec("CFB",  List.of("NoPadding")),
-		    new ModeSpec("OFB",  List.of("NoPadding")));
-
-		for (var m : serpentModes)
-		    for (var pad : m.paddings())
-		        for (int ks : new int[]{128, 192, 256})
-		            all.add(new CryptoKey("Serpent/" + m.mode() + "/" + pad, 0, 16, "Serpent", ks));
-
-		// Camellia: 128-bit block, iv=16
-		for (var m : serpentModes)
-		    for (var pad : m.paddings())
-		        for (int ks : new int[]{128, 192, 256})
-		            all.add(new CryptoKey("Camellia/" + m.mode() + "/" + pad, 0, 16, "Camellia", ks));
-
-		// CAST5: 64-bit block, iv=8, key 40-128 bits
-		var cast5Modes = List.of(
-		    new ModeSpec("CBC",  List.of("PKCS5Padding")),
-		    new ModeSpec("CTR",  List.of("NoPadding")),
-		    new ModeSpec("CFB",  List.of("NoPadding")),
-		    new ModeSpec("OFB",  List.of("NoPadding")));
-
-		for (var m : cast5Modes)
-		    for (var pad : m.paddings())
-		        for (int ks : new int[]{40, 64, 128})
-		            all.add(new CryptoKey("CAST5/" + m.mode() + "/" + pad, 0, 8, "CAST5", ks));
-
-		// CAST6: 128-bit block, iv=16
-		for (var m : serpentModes)
-		    for (var pad : m.paddings())
-		        for (int ks : new int[]{128, 192, 256})
-		            all.add(new CryptoKey("CAST6/" + m.mode() + "/" + pad, 0, 16, "CAST6", ks));
-
-		// IDEA: 64-bit block, iv=8, fixed 128-bit key
-		for (var m : cast5Modes)
-		    for (var pad : m.paddings())
-		        all.add(new CryptoKey("IDEA/" + m.mode() + "/" + pad, 0, 8, "IDEA", 128));
-
-		// SEED: 128-bit block, iv=16, fixed 128-bit key (Korean standard)
-		for (var m : serpentModes)
-		    for (var pad : m.paddings())
-		        all.add(new CryptoKey("SEED/" + m.mode() + "/" + pad, 0, 16, "SEED", 128));
-
-		// ARIA: 128-bit block, iv=16 (Korean standard)
-		for (var m : serpentModes)
-		    for (var pad : m.paddings())
-		        for (int ks : new int[]{128, 192, 256})
-		            all.add(new CryptoKey("ARIA/" + m.mode() + "/" + pad, 0, 16, "ARIA", ks));
-
-		// SM4: 128-bit block, iv=16, fixed 128-bit key (Chinese standard)
-		for (var m : serpentModes)
-		    for (var pad : m.paddings())
-		        all.add(new CryptoKey("SM4/" + m.mode() + "/" + pad, 0, 16, "SM4", 128));
-
-		// ── BC stream ciphers ────────────────────────────────────────────────────
-
-		// HC-128: 128-bit key, 128-bit iv
-		all.add(new CryptoKey("HC128", 0, 16, "HC128", 128));
-
-		// HC-256: 256-bit key, 256-bit iv
-		all.add(new CryptoKey("HC256", 0, 32, "HC256", 256));
-
-		// Salsa20: 256-bit key, 8-byte iv
-		all.add(new CryptoKey("Salsa20", 0, 8, "Salsa20", 256));
-
-		// XSalsa20: 256-bit key, 24-byte iv
-		all.add(new CryptoKey("XSalsa20", 0, 24, "XSalsa20", 256));
-
-		// GRAIN-128: 128-bit key, 12-byte iv
-		all.add(new CryptoKey("Grain128", 0, 12, "Grain128", 128));
-
-		return all;
-	}
-
-	public static CryptoKey getRandomCryptoKey() {
-		List<CryptoKey> all = getAllCryptoKeys();
-		return all.get(new SecureRandom().nextInt(all.size()));
-	}
+    public static CryptoKey randomKey()       { return ALL_KEYS.get(SECURE_RANDOM.nextInt(ALL_KEYS.size())); }
+    public static CryptoKey randomStrongKey() { return STRONG_KEYS.get(SECURE_RANDOM.nextInt(STRONG_KEYS.size())); }
+    public static List<CryptoKey> getAllCryptoKeys() { return ALL_KEYS; }
+    public static List<CryptoKey> getStrongKeys()    { return STRONG_KEYS; }
+    public static List<CryptoKey> getLegacyKeys()    { return LEGACY_KEYS; }
 }
