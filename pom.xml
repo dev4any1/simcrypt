@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>net.dev4any1.symcrypt</groupId>
+	<artifactId>simcrypt</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>Symmetrical Criptography in Java</name>
+	<description>This project aimed to use random crypto keys for each sertain
+		encrypt call so that there is no way to guess what algo is used.
+		E.g. var key = getOneKey(); var enc = encrypt(msg, key); var dec =
+		decrypt(enc, key);
+		keeping keys separate from enc will give more security in symmetric
+		encoding.</description>
+	<properties>
+		<maven.compiler.source>17</maven.compiler.source>
+		<maven.compiler.target>17</maven.compiler.target>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+			<version>1.79</version>
+		</dependency>
+	</dependencies>
+</project>

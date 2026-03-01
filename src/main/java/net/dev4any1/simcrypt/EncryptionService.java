@@ -3,6 +3,7 @@ package net.dev4any1.simcrypt;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,9 +16,15 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+
 public class EncryptionService {
 
 	private String secretKey = "Qcewntjno+YIZEC+M2M9XqWQuvNsmV6lsEZPkUG0KEk=";
+
+	static {
+		Security.addProvider(new BouncyCastleProvider());		
+	}
 
 	public record CryptoKey(String algo, int tag, int iv, String algoKey, int keyBits) {
 	    public CryptoKey {
@@ -161,6 +168,99 @@ public class EncryptionService {
 
 		// ChaCha20-Poly1305: iv=12 bytes, tag handled internally (0 here)
 		all.add(new CryptoKey("ChaCha20-Poly1305", 0, 12, "ChaCha20", 256));
+
+		// ── BouncyCastle algorithms ──────────────────────────────────────────────
+
+		// Twofish: 128-bit block, iv=16
+		var twofishModes = List.of(
+		    new ModeSpec("CBC",  List.of("PKCS5Padding", "ISO10126Padding")),
+		    new ModeSpec("CTR",  List.of("NoPadding")),
+		    new ModeSpec("CFB",  List.of("NoPadding")),
+		    new ModeSpec("CFB8", List.of("NoPadding")),
+		    new ModeSpec("OFB",  List.of("NoPadding")),
+		    new ModeSpec("GCM",  List.of("NoPadding")));  // BC supports GCM for Twofish
+
+		for (var m : twofishModes)
+		    for (var pad : m.paddings())
+		        for (int ks : new int[]{128, 192, 256})
+		            if (m.mode().equals("GCM"))
+		                all.add(new CryptoKey("Twofish/GCM/NoPadding", 128, 16, "Twofish", ks));
+		            else
+		                all.add(new CryptoKey("Twofish/" + m.mode() + "/" + pad, 0, 16, "Twofish", ks));
+
+		// Serpent: 128-bit block, iv=16
+		var serpentModes = List.of(
+		    new ModeSpec("CBC",  List.of("PKCS5Padding", "ISO10126Padding")),
+		    new ModeSpec("CTR",  List.of("NoPadding")),
+		    new ModeSpec("CFB",  List.of("NoPadding")),
+		    new ModeSpec("OFB",  List.of("NoPadding")));
+
+		for (var m : serpentModes)
+		    for (var pad : m.paddings())
+		        for (int ks : new int[]{128, 192, 256})
+		            all.add(new CryptoKey("Serpent/" + m.mode() + "/" + pad, 0, 16, "Serpent", ks));
+
+		// Camellia: 128-bit block, iv=16
+		for (var m : serpentModes)
+		    for (var pad : m.paddings())
+		        for (int ks : new int[]{128, 192, 256})
+		            all.add(new CryptoKey("Camellia/" + m.mode() + "/" + pad, 0, 16, "Camellia", ks));
+
+		// CAST5: 64-bit block, iv=8, key 40-128 bits
+		var cast5Modes = List.of(
+		    new ModeSpec("CBC",  List.of("PKCS5Padding")),
+		    new ModeSpec("CTR",  List.of("NoPadding")),
+		    new ModeSpec("CFB",  List.of("NoPadding")),
+		    new ModeSpec("OFB",  List.of("NoPadding")));
+
+		for (var m : cast5Modes)
+		    for (var pad : m.paddings())
+		        for (int ks : new int[]{40, 64, 128})
+		            all.add(new CryptoKey("CAST5/" + m.mode() + "/" + pad, 0, 8, "CAST5", ks));
+
+		// CAST6: 128-bit block, iv=16
+		for (var m : serpentModes)
+		    for (var pad : m.paddings())
+		        for (int ks : new int[]{128, 192, 256})
+		            all.add(new CryptoKey("CAST6/" + m.mode() + "/" + pad, 0, 16, "CAST6", ks));
+
+		// IDEA: 64-bit block, iv=8, fixed 128-bit key
+		for (var m : cast5Modes)
+		    for (var pad : m.paddings())
+		        all.add(new CryptoKey("IDEA/" + m.mode() + "/" + pad, 0, 8, "IDEA", 128));
+
+		// SEED: 128-bit block, iv=16, fixed 128-bit key (Korean standard)
+		for (var m : serpentModes)
+		    for (var pad : m.paddings())
+		        all.add(new CryptoKey("SEED/" + m.mode() + "/" + pad, 0, 16, "SEED", 128));
+
+		// ARIA: 128-bit block, iv=16 (Korean standard)
+		for (var m : serpentModes)
+		    for (var pad : m.paddings())
+		        for (int ks : new int[]{128, 192, 256})
+		            all.add(new CryptoKey("ARIA/" + m.mode() + "/" + pad, 0, 16, "ARIA", ks));
+
+		// SM4: 128-bit block, iv=16, fixed 128-bit key (Chinese standard)
+		for (var m : serpentModes)
+		    for (var pad : m.paddings())
+		        all.add(new CryptoKey("SM4/" + m.mode() + "/" + pad, 0, 16, "SM4", 128));
+
+		// ── BC stream ciphers ────────────────────────────────────────────────────
+
+		// HC-128: 128-bit key, 128-bit iv
+		all.add(new CryptoKey("HC128", 0, 16, "HC128", 128));
+
+		// HC-256: 256-bit key, 256-bit iv
+		all.add(new CryptoKey("HC256", 0, 32, "HC256", 256));
+
+		// Salsa20: 256-bit key, 8-byte iv
+		all.add(new CryptoKey("Salsa20", 0, 8, "Salsa20", 256));
+
+		// XSalsa20: 256-bit key, 24-byte iv
+		all.add(new CryptoKey("XSalsa20", 0, 24, "XSalsa20", 256));
+
+		// GRAIN-128: 128-bit key, 12-byte iv
+		all.add(new CryptoKey("Grain128", 0, 12, "Grain128", 128));
 
 		return all;
 	}
